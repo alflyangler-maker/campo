@@ -120,6 +120,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <input id="file" type="file" accept=".xlsx,.xls,.csv" style="display:none">
       </label>
       <button class="ghost" id="tpl">⬇ Plantilla</button>
+      <button class="ghost" id="pub">⬆ Publicar</button>
       <button class="ghost" id="reset">↺ Ejemplo</button>
       <div id="status">Mostrando datos de ejemplo. Subí tu Excel para actualizar.</div>
     </div>
@@ -163,11 +164,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 <script>
 /* ---------- datos de ejemplo (2 temporadas) ---------- */
 const SAMPLE = [
-  {label:"24/25", toros:26, terneros:285, terneras:265, vacasCut:90, vacasPre:540, vaqPre:130,
-   caballos:14, ovinos:180, maquinaria:7, tierra:460},
-  {label:"25/26", toros:28, terneros:300, terneras:285, vacasCut:88, vacasPre:570, vaqPre:150,
-   caballos:15, ovinos:210, maquinaria:7, tierra:500},
+  {label:"24/25", toros:4, terneros:0, terneras:0, vacasCut:0, vacasPre:0, vaqPre:0,
+   caballos:4, ovinos:0, maquinaria:5, tierra:0},
+  {label:"25/26", toros:0, terneros:85, terneras:81, vacasCut:21, vacasPre:145, vaqPre:43,
+   caballos:6, ovinos:13, maquinaria:4, tierra:440},
 ];
+const KEY = "campo_dashboard_datos";
 let ROWS = SAMPLE.slice();
 const charts = {};
 
@@ -233,8 +235,9 @@ function loadWorkbook(data){
     const mapped = json.map(mapRow).filter(r => r.label);
     if(!mapped.length){ setStatus('⚠ No se encontraron filas. Revisá que exista la columna Campaña.', true); return; }
     ROWS = mapped.sort((a,b)=>String(a.label).localeCompare(String(b.label)));
+    try{ localStorage.setItem(KEY, JSON.stringify(ROWS)); }catch(e){}
     render();
-    setStatus('✔ Cargadas '+mapped.length+' temporadas. Podés recargar un Excel actualizado cuando quieras.');
+    setStatus('✔ Cargadas '+mapped.length+' temporadas y guardadas en este navegador. Podés recargar un Excel actualizado cuando quieras.');
   }catch(e){ setStatus('⚠ No se pudo leer el archivo: '+e.message, true); }
 }
 function setStatus(m,err){ const s=document.getElementById('status'); s.textContent=m; s.style.color=err?'#F0C5B4':'#A9C1AC'; }
@@ -344,9 +347,36 @@ function descargarPlantilla(){
 /* ---------- eventos ---------- */
 document.getElementById('file').addEventListener('change', e=>handleFile(e.target.files[0]));
 document.getElementById('tpl').addEventListener('click', descargarPlantilla);
-document.getElementById('reset').addEventListener('click', ()=>{ ROWS=SAMPLE.slice(); render(); setStatus('Datos de ejemplo restaurados.'); });
+document.getElementById('reset').addEventListener('click', ()=>{ try{localStorage.removeItem(KEY);}catch(e){} ROWS=SAMPLE.slice(); render(); setStatus('Datos de ejemplo restaurados.'); });
 
-render();
+function publicar(){
+  const blob = new Blob([JSON.stringify(ROWS, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'datos.json'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  setStatus('Se descargó datos.json. Subilo al repo (junto al index.html) y lo verán todos.');
+}
+document.getElementById('pub').addEventListener('click', publicar);
+
+(async function init(){
+  // 1) datos publicados en el repo (visibles para todos)
+  try{
+    const res = await fetch('datos.json?t=' + Date.now());
+    if(res.ok){
+      const d = await res.json();
+      if(Array.isArray(d) && d.length){ ROWS = d; render();
+        setStatus('✔ Datos publicados — visibles para todos.'); return; }
+    }
+  }catch(e){}
+  // 2) copia guardada en este navegador
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){ const d = JSON.parse(raw); if(Array.isArray(d) && d.length){ ROWS = d; render();
+      setStatus('✔ Datos guardados en este navegador. Tocá “Publicar” para que los vean todos.'); return; } }
+  }catch(e){}
+  // 3) ejemplo
+  render();
+})();
 </script>
 </body>
 </html>
